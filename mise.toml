@@ -1,5 +1,6 @@
 [tools]
 rust = "stable"
+python = "3.14.5"
 cocogitto = "latest"
 github-cli = "latest"
 
