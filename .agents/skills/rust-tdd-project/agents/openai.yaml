@@ -1,0 +1,5 @@
+interface:
+  display_name: Rust TDD Project
+  short_description: Test-first Rust and CodeCrafters shell guidance.
+  icon: 🦀
+  color: "#CE412B"

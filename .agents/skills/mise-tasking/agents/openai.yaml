@@ -1,0 +1,5 @@
+interface:
+  display_name: Mise Tasking
+  short_description: Mise tooling, task, file task, lockfile, and automation guidance.
+  icon: 🛠️
+  color: "#F97316"

@@ -1,0 +1,5 @@
+interface:
+  display_name: Conventional Commits
+  short_description: Cocogitto, commit message, PR title, and hook guidance.
+  icon: ✅
+  color: "#0F766E"

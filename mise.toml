@@ -1,0 +1,43 @@
+[tools]
+rust = "stable"
+cocogitto = "latest"
+github-cli = "latest"
+
+[env]
+RUST_BACKTRACE = "1"
+
+[tasks."rust:fmt"]
+description = "Format Rust code"
+run = "cargo fmt --all"
+
+[tasks."rust:fmt:check"]
+description = "Check Rust formatting"
+run = "cargo fmt --all -- --check"
+
+[tasks."rust:lint"]
+description = "Lint Rust code with clippy"
+run = "cargo clippy --all-targets --all-features -- -D warnings"
+
+[tasks."rust:build"]
+description = "Build the shell"
+run = "cargo build --all-targets"
+
+[tasks."rust:test"]
+description = "Run the test suite"
+run = "cargo test --all-features"
+
+[tasks."rust:ci"]
+description = "Run the full local CI suite"
+depends = ["rust:fmt:check", "rust:lint", "rust:build", "rust:test"]
+
+[tasks."dev:run"]
+description = "Run the shell"
+run = "cargo run"
+
+[tasks."git:hooks:install"]
+description = "Install Cocogitto git hooks"
+run = "cog install-hook --all --overwrite"
+
+[tasks."pr:title:validate"]
+description = "Validate a pull request title as a Conventional Commit"
+run = 'echo "$PR_TITLE" | cog verify --file -'

@@ -1,0 +1,5 @@
+interface:
+  display_name: GitHub Governance
+  short_description: GitHub Actions, CLI, PR, release, and branch governance guidance.
+  icon: 🐙
+  color: "#24292F"
