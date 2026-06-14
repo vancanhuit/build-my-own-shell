@@ -80,6 +80,34 @@ def verify_tag(tag: str) -> None:
         ) from exc
 
 
+def previous_tag(tag: str) -> Optional[str]:
+    """Return the tag immediately preceding `tag`, or None if it is the first."""
+    try:
+        return commands.capture(
+            ["git", "describe", "--tags", "--abbrev=0", f"{tag}^"]
+        )
+    except subprocess.CalledProcessError:
+        return None
+
+
+def generate_notes(tag: str) -> str:
+    """Generate release notes for `tag` using Cocogitto's changelog.
+
+    Covers commits since the previous tag, falling back to the full history
+    for the first release. The leading version header is stripped so the notes
+    contain only the grouped changelog sections.
+    """
+    prev = previous_tag(tag)
+    cmd = ["cog", "changelog"]
+    if prev:
+        cmd.append(f"{prev}..{tag}")
+    output = commands.capture(cmd)
+    lines = output.splitlines()
+    if lines and lines[0].startswith("## "):
+        lines = lines[1:]
+    return "\n".join(lines).strip()
+
+
 def release_command(tag: str, title: str, notes: Optional[str], artifact: Path) -> List[str]:
     """Build the 'gh release create' command for the given inputs."""
     cmd = ["gh", "release", "create", tag, str(artifact), "--title", title]
@@ -92,4 +120,6 @@ def release_command(tag: str, title: str, notes: Optional[str], artifact: Path) 
 
 def create_release(tag: str, title: str, notes: Optional[str], artifact: Path) -> None:
     """Publish a GitHub release with the packaged artifact."""
+    if not notes:
+        notes = generate_notes(tag)
     commands.run(release_command(tag, title, notes, artifact))

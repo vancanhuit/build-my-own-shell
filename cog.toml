@@ -6,7 +6,6 @@ pre_bump_hooks = ["mise run rust:ci"]
 post_bump_hooks = []
 
 [changelog]
-path = "CHANGELOG.md"
 template = "remote"
 remote = "github.com"
 repository = "build-my-own-shell"

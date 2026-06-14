@@ -26,15 +26,15 @@ def main() -> None:
     args = parser.parse_args()
 
     tag = release.resolve_tag(args.tag)
-    title = args.title or os.environ.get("RELEASE_TITLE") or tag
     notes = args.notes or os.environ.get("RELEASE_NOTES")
 
     log.info("Starting release:dry-run for %s", tag)
     artifact = release.package(tag)
 
-    planned = release.release_command(tag, title, notes, artifact)
+    if not notes:
+        notes = release.generate_notes(tag)
     log.info("Dry run only; not publishing")
-    log.info("Would run: %s", " ".join(planned))
+    log.info("Release notes:\n%s", notes)
     print(f"Dry run complete. Artifact: {artifact}")
 
 
