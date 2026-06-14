@@ -13,3 +13,8 @@
 # mise local overrides (keep mise.toml and mise.lock tracked)
 mise.local.toml
 .mise.local.toml
+dist/
+
+# Python bytecode
+__pycache__/
+*.pyc

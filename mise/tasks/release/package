@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+#MISE description="Build and package the release binary"
+"""mise task: release:package — run CI, build, and package the release binary."""
+
+import argparse
+import logging
+import os
+import sys
+
+sys.path.insert(
+    0, os.path.join(os.environ["MISE_PROJECT_ROOT"], "mise", "lib", "python")
+)
+
+from mise_tasks import release  # noqa: E402
+from mise_tasks.logging_setup import configure_logging  # noqa: E402
+
+log = logging.getLogger("release.package")
+
+
+def main() -> None:
+    configure_logging()
+    parser = argparse.ArgumentParser(description="Build and package the release binary")
+    parser.add_argument("--tag", help="Release tag, e.g. v0.1.0")
+    args = parser.parse_args()
+
+    tag = release.resolve_tag(args.tag)
+    log.info("Starting release:package for %s", tag)
+    artifact = release.package(tag)
+    log.info("Built artifact %s", artifact)
+    print(artifact)
+
+
+if __name__ == "__main__":
+    main()
