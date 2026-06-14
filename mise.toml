@@ -30,7 +30,7 @@ run = "cargo test --all-features"
 description = "Run the full local CI suite"
 depends = ["rust:fmt:check", "rust:lint", "rust:build", "rust:test"]
 
-[tasks."dev:run"]
+[tasks."dev:shell"]
 description = "Run the shell"
 run = "cargo run"
 

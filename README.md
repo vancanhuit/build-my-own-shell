@@ -224,7 +224,7 @@ mise lock
 Run the shell:
 
 ```bash
-mise run dev:run
+mise run dev:shell
 ```
 
 Run tests:
