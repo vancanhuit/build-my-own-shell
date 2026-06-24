@@ -1,8 +1,12 @@
 [tools]
-rust = "stable"
-python = "3.14.5"
-cocogitto = "latest"
-github-cli = "latest"
+rust = { version = "1.96.0", components = [
+  "rustfmt",
+  "clippy",
+  "rust-analyzer",
+] }
+python = "3.14.6"
+cocogitto = "7.0.0"
+gh = "2.95.0"
 
 [env]
 RUST_BACKTRACE = "1"
