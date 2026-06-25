@@ -1,6 +1,7 @@
 //! Shell builtins that run inside the shell process.
 
 use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
 
 use crate::ast::Command;
 
@@ -18,6 +19,45 @@ const BUILTINS: &[&str] = &["echo", "exit", "type"];
 /// Whether `name` refers to a shell builtin.
 fn is_builtin(name: &str) -> bool {
     BUILTINS.contains(&name)
+}
+
+/// Search each `PATH` directory in order for a file named `name`.
+fn find_in_path(name: &str) -> Option<PathBuf> {
+    let path = std::env::var("PATH").ok()?;
+    path.split(':').find_map(|dir| {
+        let candidate = Path::new(dir).join(name);
+        candidate.exists().then_some(candidate)
+    })
+}
+
+/// Whether `path` has any execute bit set.
+fn is_executable(path: &Path) -> bool {
+    std::fs::metadata(path)
+        .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+/// Implement the `type` builtin for a single `name`.
+fn run_type(name: &str) -> Builtin {
+    if is_builtin(name) {
+        println!("{name} is a shell builtin");
+        return Builtin::Handled(0);
+    }
+
+    match find_in_path(name) {
+        Some(path) if is_executable(&path) => {
+            println!("{name} is {}", path.display());
+            Builtin::Handled(0)
+        }
+        Some(_) => {
+            println!("{name} is not executable");
+            Builtin::Handled(1)
+        }
+        None => {
+            println!("{name}: not found");
+            Builtin::Handled(1)
+        }
+    }
 }
 
 /// Try to run `command` as a builtin.
@@ -39,34 +79,7 @@ pub fn dispatch(command: &Command) -> Option<Builtin> {
         }
         "type" => {
             let name = command.args.first().map(|s| s.as_str()).unwrap_or("");
-            if is_builtin(name) {
-                println!("{} is a shell builtin", name);
-                Some(Builtin::Handled(0))
-            } else {
-                let path = std::env::var("PATH").unwrap_or_default();
-                let found = path.split(':').find_map(|p| {
-                    let full_path = std::path::Path::new(p).join(name);
-                    if full_path.exists() {
-                        Some(full_path)
-                    } else {
-                        None
-                    }
-                });
-                if let Some(found) = found {
-                    let metadata = std::fs::metadata(&found).ok()?;
-                    let permissions = metadata.permissions();
-                    if permissions.mode() & 0o111 != 0 {
-                        println!("{} is {}", name, found.display());
-                        Some(Builtin::Handled(0))
-                    } else {
-                        println!("{} is not executable", name);
-                        Some(Builtin::Handled(1))
-                    }
-                } else {
-                    println!("{}: not found", name);
-                    Some(Builtin::Handled(1))
-                }
-            }
+            Some(run_type(name))
         }
         _ => None,
     }
