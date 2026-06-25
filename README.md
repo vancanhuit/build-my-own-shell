@@ -71,14 +71,14 @@ The following checklist is the implementation track for this repository.
 
 ### Core Shell
 
-- [ ] Print a prompt
-- [ ] Handle invalid commands
-- [ ] Implement a REPL
-- [ ] Implement `exit`
-- [ ] Implement `echo`
-- [ ] Implement `type`
-- [ ] Locate executable files
-- [ ] Run a program
+- [x] Print a prompt
+- [x] Handle invalid commands
+- [x] Implement a REPL
+- [x] Implement `exit`
+- [x] Implement `echo`
+- [x] Implement `type`
+- [x] Locate executable files
+- [x] Run a program
 
 ### Navigation
 
