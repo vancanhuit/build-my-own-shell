@@ -88,4 +88,25 @@ mod tests {
             _ => panic!("expected Exit(7)"),
         }
     }
+
+    #[test]
+    fn type_reports_known_builtins_as_handled() {
+        for name in ["echo", "exit", "type"] {
+            match dispatch(&Command::new("type", vec![name.to_string()])) {
+                Some(Builtin::Handled(0)) => {}
+                _ => panic!("expected Handled(0) for `type {name}`"),
+            }
+        }
+    }
+
+    #[test]
+    fn type_reports_unknown_names_as_handled_failure() {
+        match dispatch(&Command::new(
+            "type",
+            vec!["definitely_not_a_real_command_xyz".to_string()],
+        )) {
+            Some(Builtin::Handled(1)) => {}
+            _ => panic!("expected Handled(1) for an unknown name"),
+        }
+    }
 }
