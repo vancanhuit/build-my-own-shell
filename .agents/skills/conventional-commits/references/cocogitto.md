@@ -15,7 +15,6 @@ pre_bump_hooks = ["mise run rust:ci"]
 post_bump_hooks = []
 
 [changelog]
-path = "CHANGELOG.md"
 template = "remote"
 remote = "github.com"
 repository = "rsh"
@@ -34,3 +33,5 @@ Install hooks:
 ```bash
 mise run git:hooks:install
 ```
+
+Do not commit a `CHANGELOG.md`. Generate the changelog at release time and put it into the GitHub release notes (see `release:create`).
