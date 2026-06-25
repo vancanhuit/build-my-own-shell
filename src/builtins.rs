@@ -12,6 +12,14 @@ pub enum Builtin {
     Exit(i32),
 }
 
+/// Names of the commands implemented as shell builtins.
+const BUILTINS: &[&str] = &["echo", "exit", "type"];
+
+/// Whether `name` refers to a shell builtin.
+fn is_builtin(name: &str) -> bool {
+    BUILTINS.contains(&name)
+}
+
 /// Try to run `command` as a builtin.
 ///
 /// Returns `None` if the command name is not a known builtin.
@@ -31,7 +39,7 @@ pub fn dispatch(command: &Command) -> Option<Builtin> {
         }
         "type" => {
             let name = command.args.first().map(|s| s.as_str()).unwrap_or("");
-            if name == "exit" || name == "echo" || name == "type" {
+            if is_builtin(name) {
                 println!("{} is a shell builtin", name);
                 Some(Builtin::Handled(0))
             } else {
