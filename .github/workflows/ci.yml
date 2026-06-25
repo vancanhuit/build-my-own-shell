@@ -22,8 +22,12 @@ jobs:
         with:
           install: true
           cache: true
-      # Materialize the Rust toolchain once before rust:ci runs its tasks in
-      # parallel, otherwise concurrent cargo invocations race installing the
-      # rustup components and fail with a "could not rename" download error.
-      - run: mise exec -- cargo --version
+      # Materialize the pinned Rust toolchain and its components once before
+      # rust:ci runs its tasks in parallel. A fresh runner otherwise lets the
+      # concurrent cargo invocations race installing the toolchain, and rustup's
+      # on-demand install uses the minimal profile without rustfmt/clippy.
+      - name: Warm up the Rust toolchain
+        run: |
+          mise exec -- cargo --version
+          mise exec -- rustup component add rustfmt clippy
       - run: mise run rust:ci
