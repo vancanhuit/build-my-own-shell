@@ -1,5 +1,7 @@
 //! Shell builtins that run inside the shell process.
 
+use std::os::unix::fs::PermissionsExt;
+
 use crate::ast::Command;
 
 /// The result of dispatching a command to a builtin.
@@ -26,6 +28,37 @@ pub fn dispatch(command: &Command) -> Option<Builtin> {
         "echo" => {
             println!("{}", command.args.join(" "));
             Some(Builtin::Handled(0))
+        }
+        "type" => {
+            let name = command.args.first().map(|s| s.as_str()).unwrap_or("");
+            if name == "exit" || name == "echo" || name == "type" {
+                println!("{} is a shell builtin", name);
+                Some(Builtin::Handled(0))
+            } else {
+                let path = std::env::var("PATH").unwrap_or_default();
+                let found = path.split(':').find_map(|p| {
+                    let full_path = std::path::Path::new(p).join(name);
+                    if full_path.exists() {
+                        Some(full_path)
+                    } else {
+                        None
+                    }
+                });
+                if let Some(found) = found {
+                    let metadata = std::fs::metadata(&found).ok()?;
+                    let permissions = metadata.permissions();
+                    if permissions.mode() & 0o111 != 0 {
+                        println!("{} is {}", name, found.display());
+                        Some(Builtin::Handled(0))
+                    } else {
+                        println!("{} is not executable", name);
+                        Some(Builtin::Handled(1))
+                    }
+                } else {
+                    println!("{}: not found", name);
+                    Some(Builtin::Handled(1))
+                }
+            }
         }
         _ => None,
     }
