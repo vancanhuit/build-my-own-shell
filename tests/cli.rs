@@ -32,6 +32,16 @@ fn make_executable(dir: &Path, name: &str, body: &str) -> PathBuf {
     path
 }
 
+/// Create a regular, non-executable file named `name` inside `dir`.
+fn make_non_executable(dir: &Path, name: &str) -> PathBuf {
+    let path = dir.join(name);
+    std::fs::write(&path, "not a program").unwrap();
+    let mut perms = std::fs::metadata(&path).unwrap().permissions();
+    perms.set_mode(0o644);
+    std::fs::set_permissions(&path, perms).unwrap();
+    path
+}
+
 // Stage: Print a prompt
 #[test]
 fn prints_a_prompt() {
@@ -141,6 +151,63 @@ fn type_reports_an_executable_with_its_path() {
         .write_stdin("type my_prog\n")
         .assert()
         .stdout(contains(format!("my_prog is {}", prog.display())));
+}
+
+// Stage: Locate executable files
+// A PATH entry that exists but is not executable is not a command.
+#[test]
+fn type_ignores_a_non_executable_path_entry() {
+    let dir = tempfile::tempdir().unwrap();
+    make_non_executable(dir.path(), "not_runnable");
+
+    shell()
+        .env("PATH", path_with(dir.path()))
+        .write_stdin("type not_runnable\n")
+        .assert()
+        .stdout(contains("not_runnable: not found"));
+}
+
+// Stage: Locate executable files
+// Resolution must skip a non-executable match and keep scanning later dirs.
+#[test]
+fn type_skips_non_executable_match_for_a_later_executable() {
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    make_non_executable(first.path(), "tool");
+    let prog = make_executable(second.path(), "tool", "#!/bin/sh\n");
+
+    let path = format!("{}:{}", first.path().display(), second.path().display());
+    shell()
+        .env("PATH", path)
+        .write_stdin("type tool\n")
+        .assert()
+        .stdout(contains(format!("tool is {}", prog.display())));
+}
+
+// Stage: Implement `type`
+// `type` accepts several names and reports each one.
+#[test]
+fn type_reports_each_of_multiple_names() {
+    shell()
+        .write_stdin("type echo nonexistent_xyz exit\n")
+        .assert()
+        .code(1)
+        .stdout(
+            contains("echo is a shell builtin")
+                .and(contains("nonexistent_xyz: not found"))
+                .and(contains("exit is a shell builtin")),
+        );
+}
+
+// Stage: Implement `type`
+// `type` with no operands succeeds and prints nothing of its own.
+#[test]
+fn type_without_arguments_succeeds_silently() {
+    shell()
+        .write_stdin("type\n")
+        .assert()
+        .success()
+        .stdout("$ $ ");
 }
 
 // Stage: Run a program

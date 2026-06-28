@@ -21,41 +21,54 @@ fn is_builtin(name: &str) -> bool {
     BUILTINS.contains(&name)
 }
 
-/// Search each `PATH` directory in order for a file named `name`.
+/// Search each `PATH` directory in order for an executable named `name`.
+///
+/// A directory entry that exists but is not an executable file is skipped, so
+/// resolution keeps scanning later directories just like a real shell.
 fn find_in_path(name: &str) -> Option<PathBuf> {
     let path = std::env::var("PATH").ok()?;
     path.split(':').find_map(|dir| {
         let candidate = Path::new(dir).join(name);
-        candidate.exists().then_some(candidate)
+        is_executable(&candidate).then_some(candidate)
     })
 }
 
-/// Whether `path` has any execute bit set.
+/// Whether `path` is a regular file with any execute bit set.
 fn is_executable(path: &Path) -> bool {
     std::fs::metadata(path)
-        .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
+        .map(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
         .unwrap_or(false)
 }
 
-/// Implement the `type` builtin for a single `name`.
-fn run_type(name: &str) -> Builtin {
+/// Implement the `type` builtin over its operands.
+///
+/// Each name is reported on its own line. The status is `1` if any name could
+/// not be resolved, mirroring the shell's `type` exit code.
+fn run_type(names: &[String]) -> Builtin {
+    let mut status = 0;
+    for name in names {
+        if !report_type(name) {
+            status = 1;
+        }
+    }
+    Builtin::Handled(status)
+}
+
+/// Report how a single `name` would be resolved. Returns whether it was found.
+fn report_type(name: &str) -> bool {
     if is_builtin(name) {
         println!("{name} is a shell builtin");
-        return Builtin::Handled(0);
+        return true;
     }
 
     match find_in_path(name) {
-        Some(path) if is_executable(&path) => {
+        Some(path) => {
             println!("{name} is {}", path.display());
-            Builtin::Handled(0)
-        }
-        Some(_) => {
-            println!("{name} is not executable");
-            Builtin::Handled(1)
+            true
         }
         None => {
             println!("{name}: not found");
-            Builtin::Handled(1)
+            false
         }
     }
 }
@@ -77,10 +90,7 @@ pub fn dispatch(command: &Command) -> Option<Builtin> {
             println!("{}", command.args.join(" "));
             Some(Builtin::Handled(0))
         }
-        "type" => {
-            let name = command.args.first().map(|s| s.as_str()).unwrap_or("");
-            Some(run_type(name))
-        }
+        "type" => Some(run_type(&command.args)),
         _ => None,
     }
 }
@@ -128,6 +138,25 @@ mod tests {
         )) {
             Some(Builtin::Handled(1)) => {}
             _ => panic!("expected Handled(1) for an unknown name"),
+        }
+    }
+
+    #[test]
+    fn type_without_arguments_is_handled_success() {
+        match dispatch(&Command::new("type", Vec::new())) {
+            Some(Builtin::Handled(0)) => {}
+            _ => panic!("expected Handled(0) for `type` with no operands"),
+        }
+    }
+
+    #[test]
+    fn type_fails_when_any_name_is_unknown() {
+        match dispatch(&Command::new(
+            "type",
+            vec!["echo".into(), "definitely_not_a_real_command_xyz".into()],
+        )) {
+            Some(Builtin::Handled(1)) => {}
+            _ => panic!("expected Handled(1) when one of several names is unknown"),
         }
     }
 }
