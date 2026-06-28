@@ -16,6 +16,7 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1"
+rustyline = { version = "18", features = ["derive"] }
 thiserror = "2"
 
 [dev-dependencies]
