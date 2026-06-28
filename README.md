@@ -105,12 +105,12 @@ The following checklist is the implementation track for this repository.
 
 ### Command Completion
 
-- [ ] Builtin completion
-- [ ] Completion with arguments
-- [ ] Missing completions
-- [ ] Executable completion
-- [ ] Multiple completions
-- [ ] Partial completions
+- [x] Builtin completion
+- [x] Completion with arguments
+- [x] Missing completions
+- [x] Executable completion
+- [x] Multiple completions
+- [x] Partial completions
 
 ### Filename Completion
 

@@ -22,6 +22,11 @@ pub fn is_builtin(name: &str) -> bool {
     BUILTINS.contains(&name)
 }
 
+/// The names of every shell builtin, used for `type` and tab-completion.
+pub fn names() -> &'static [&'static str] {
+    BUILTINS
+}
+
 /// Search each `PATH` directory in order for an executable named `name`.
 ///
 /// A directory entry that exists but is not an executable file is skipped, so
@@ -35,7 +40,7 @@ fn find_in_path(name: &str) -> Option<PathBuf> {
 }
 
 /// Whether `path` is a regular file with any execute bit set.
-fn is_executable(path: &Path) -> bool {
+pub(crate) fn is_executable(path: &Path) -> bool {
     std::fs::metadata(path)
         .map(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
         .unwrap_or(false)
