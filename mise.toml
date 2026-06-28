@@ -36,8 +36,8 @@ description = "Run the full local CI suite"
 depends = ["rust:fmt:check", "rust:lint", "rust:build", "rust:test"]
 
 [tasks."dev:shell"]
-description = "Run the shell"
-run = "cargo run"
+description = "Run the shell interactively"
+run = "cargo run --quiet"
 
 [tasks."git:hooks:install"]
 description = "Install Cocogitto git hooks"
