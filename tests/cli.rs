@@ -321,3 +321,67 @@ fn cd_reports_a_missing_directory() {
             "cd: /nonexistent_dir_xyz: No such file or directory",
         ));
 }
+
+// Stage: Single quotes
+#[test]
+fn single_quotes_preserve_spacing() {
+    shell()
+        .write_stdin("echo 'hello   world'\n")
+        .assert()
+        .success()
+        .stdout(contains("hello   world"));
+}
+
+// Stage: Double quotes
+#[test]
+fn double_quotes_preserve_spacing() {
+    shell()
+        .write_stdin("echo \"hello   world\"\n")
+        .assert()
+        .success()
+        .stdout(contains("hello   world"));
+}
+
+// Stage: Backslash outside quotes
+#[test]
+fn backslash_escapes_spaces_outside_quotes() {
+    shell()
+        .write_stdin("echo world\\ \\ \\ script\n")
+        .assert()
+        .success()
+        .stdout(contains("world   script"));
+}
+
+// Stage: Backslash within single quotes
+#[test]
+fn backslash_is_literal_within_single_quotes() {
+    shell()
+        .write_stdin("echo 'hello\\nworld'\n")
+        .assert()
+        .success()
+        .stdout(contains("hello\\nworld"));
+}
+
+// Stage: Backslash within double quotes
+#[test]
+fn backslash_escapes_quotes_within_double_quotes() {
+    shell()
+        .write_stdin("echo \"hello\\\"insidequotes\"\n")
+        .assert()
+        .success()
+        .stdout(contains("hello\"insidequotes"));
+}
+
+// Stage: Executing a quoted executable
+#[test]
+fn runs_a_quoted_executable_with_spaces_in_its_name() {
+    let dir = tempfile::tempdir().unwrap();
+    make_executable(dir.path(), "exe with space", "#!/bin/sh\necho ran\n");
+
+    shell()
+        .env("PATH", path_with(dir.path()))
+        .write_stdin("'exe with space'\n")
+        .assert()
+        .success()
+        .stdout(contains("ran"));
+}

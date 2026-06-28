@@ -89,12 +89,12 @@ The following checklist is the implementation track for this repository.
 
 ### Quoting
 
-- [ ] Single quotes
-- [ ] Double quotes
-- [ ] Backslash outside quotes
-- [ ] Backslash within single quotes
-- [ ] Backslash within double quotes
-- [ ] Executing a quoted executable
+- [x] Single quotes
+- [x] Double quotes
+- [x] Backslash outside quotes
+- [x] Backslash within single quotes
+- [x] Backslash within double quotes
+- [x] Executing a quoted executable
 
 ### Redirection
 
