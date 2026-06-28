@@ -223,3 +223,101 @@ fn runs_an_external_program_with_arguments() {
         .success()
         .stdout(contains("hello world"));
 }
+
+// Stage: The `pwd` builtin
+#[test]
+fn pwd_prints_the_current_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    let cwd = dir.path().canonicalize().unwrap();
+
+    shell()
+        .current_dir(&cwd)
+        .write_stdin("pwd\n")
+        .assert()
+        .success()
+        .stdout(contains(cwd.display().to_string()));
+}
+
+// Stage: The `cd` builtin: absolute paths
+#[test]
+fn cd_changes_to_an_absolute_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().canonicalize().unwrap();
+
+    shell()
+        .write_stdin(format!("cd {}\npwd\n", target.display()))
+        .assert()
+        .success()
+        .stdout(contains(target.display().to_string()));
+}
+
+// Stage: The `cd` builtin: relative paths
+#[test]
+fn cd_changes_to_a_relative_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    let base = dir.path().canonicalize().unwrap();
+    std::fs::create_dir(base.join("sub")).unwrap();
+
+    shell()
+        .current_dir(&base)
+        .write_stdin("cd ./sub\npwd\n")
+        .assert()
+        .success()
+        .stdout(contains(base.join("sub").display().to_string()));
+}
+
+// Stage: The `cd` builtin: relative paths
+#[test]
+fn cd_handles_parent_directory_references() {
+    let dir = tempfile::tempdir().unwrap();
+    let base = dir.path().canonicalize().unwrap();
+    std::fs::create_dir(base.join("sub")).unwrap();
+
+    shell()
+        .current_dir(base.join("sub"))
+        .write_stdin("cd ..\npwd\n")
+        .assert()
+        .success()
+        .stdout(contains(base.display().to_string()));
+}
+
+// Stage: The `cd` builtin: home directory
+#[test]
+fn cd_with_tilde_goes_to_home() {
+    let home = tempfile::tempdir().unwrap();
+    let home = home.path().canonicalize().unwrap();
+
+    shell()
+        .env("HOME", &home)
+        .write_stdin("cd ~\npwd\n")
+        .assert()
+        .success()
+        .stdout(contains(home.display().to_string()));
+}
+
+// Stage: The `cd` builtin: home directory
+#[test]
+fn cd_without_arguments_goes_to_home() {
+    let home = tempfile::tempdir().unwrap();
+    let home = home.path().canonicalize().unwrap();
+
+    shell()
+        .env("HOME", &home)
+        .write_stdin("cd\npwd\n")
+        .assert()
+        .success()
+        .stdout(contains(home.display().to_string()));
+}
+
+// Stage: The `cd` builtin: absolute paths
+// A missing directory is reported and yields a non-zero status.
+#[test]
+fn cd_reports_a_missing_directory() {
+    shell()
+        .write_stdin("cd /nonexistent_dir_xyz\n")
+        .assert()
+        .code(1)
+        .stderr(contains(
+            "cd: /nonexistent_dir_xyz: No such file or directory",
+        ));
+}

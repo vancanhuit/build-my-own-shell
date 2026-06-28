@@ -14,7 +14,7 @@ pub enum Builtin {
 }
 
 /// Names of the commands implemented as shell builtins.
-const BUILTINS: &[&str] = &["echo", "exit", "type"];
+const BUILTINS: &[&str] = &["cd", "echo", "exit", "pwd", "type"];
 
 /// Whether `name` refers to a shell builtin.
 fn is_builtin(name: &str) -> bool {
@@ -73,6 +73,53 @@ fn report_type(name: &str) -> bool {
     }
 }
 
+/// Resolve the directory `cd` should switch to.
+///
+/// No argument and a bare `~` consult `home`; a `~/` prefix is expanded
+/// against it. Every other path is taken verbatim, letting the OS resolve
+/// relative components against the current directory. Returns `None` when a
+/// home directory is required but unavailable.
+fn cd_target(arg: Option<&str>, home: Option<PathBuf>) -> Option<PathBuf> {
+    match arg {
+        None | Some("~") => home,
+        Some(path) => match path.strip_prefix("~/") {
+            Some(rest) => home.map(|home| home.join(rest)),
+            None => Some(PathBuf::from(path)),
+        },
+    }
+}
+
+/// Implement the `cd` builtin for an optional target directory.
+fn run_cd(arg: Option<&str>) -> Builtin {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let Some(target) = cd_target(arg, home) else {
+        eprintln!("cd: HOME not set");
+        return Builtin::Handled(1);
+    };
+
+    match std::env::set_current_dir(&target) {
+        Ok(()) => Builtin::Handled(0),
+        Err(_) => {
+            eprintln!("cd: {}: No such file or directory", target.display());
+            Builtin::Handled(1)
+        }
+    }
+}
+
+/// Implement the `pwd` builtin: print the current working directory.
+fn run_pwd() -> Builtin {
+    match std::env::current_dir() {
+        Ok(dir) => {
+            println!("{}", dir.display());
+            Builtin::Handled(0)
+        }
+        Err(err) => {
+            eprintln!("pwd: {err}");
+            Builtin::Handled(1)
+        }
+    }
+}
+
 /// Try to run `command` as a builtin.
 ///
 /// Returns `None` if the command name is not a known builtin.
@@ -91,6 +138,8 @@ pub fn dispatch(command: &Command) -> Option<Builtin> {
             Some(Builtin::Handled(0))
         }
         "type" => Some(run_type(&command.args)),
+        "pwd" => Some(run_pwd()),
+        "cd" => Some(run_cd(command.args.first().map(String::as_str))),
         _ => None,
     }
 }
@@ -122,7 +171,7 @@ mod tests {
 
     #[test]
     fn type_reports_known_builtins_as_handled() {
-        for name in ["echo", "exit", "type"] {
+        for name in ["cd", "echo", "exit", "pwd", "type"] {
             match dispatch(&Command::new("type", vec![name.to_string()])) {
                 Some(Builtin::Handled(0)) => {}
                 _ => panic!("expected Handled(0) for `type {name}`"),
@@ -158,5 +207,46 @@ mod tests {
             Some(Builtin::Handled(1)) => {}
             _ => panic!("expected Handled(1) when one of several names is unknown"),
         }
+    }
+
+    #[test]
+    fn cd_target_without_argument_uses_home() {
+        let home = PathBuf::from("/home/alice");
+        assert_eq!(cd_target(None, Some(home.clone())), Some(home));
+    }
+
+    #[test]
+    fn cd_target_bare_tilde_uses_home() {
+        let home = PathBuf::from("/home/alice");
+        assert_eq!(cd_target(Some("~"), Some(home.clone())), Some(home));
+    }
+
+    #[test]
+    fn cd_target_expands_tilde_prefix_against_home() {
+        let home = PathBuf::from("/home/alice");
+        assert_eq!(
+            cd_target(Some("~/projects/shell"), Some(home)),
+            Some(PathBuf::from("/home/alice/projects/shell"))
+        );
+    }
+
+    #[test]
+    fn cd_target_keeps_absolute_and_relative_paths_verbatim() {
+        let home = Some(PathBuf::from("/home/alice"));
+        assert_eq!(
+            cd_target(Some("/usr/local"), home.clone()),
+            Some(PathBuf::from("/usr/local"))
+        );
+        assert_eq!(
+            cd_target(Some("../sibling"), home),
+            Some(PathBuf::from("../sibling"))
+        );
+    }
+
+    #[test]
+    fn cd_target_needs_home_for_tilde() {
+        assert_eq!(cd_target(Some("~"), None), None);
+        assert_eq!(cd_target(Some("~/docs"), None), None);
+        assert_eq!(cd_target(None, None), None);
     }
 }
