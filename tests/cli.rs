@@ -385,3 +385,108 @@ fn runs_a_quoted_executable_with_spaces_in_its_name() {
         .success()
         .stdout(contains("ran"));
 }
+
+// Stage: Redirect stdout
+#[test]
+fn redirects_builtin_stdout_to_a_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("out.txt");
+
+    shell()
+        .write_stdin(format!("echo hello redirected > {}\n", out.display()))
+        .assert()
+        .success();
+
+    assert_eq!(std::fs::read_to_string(&out).unwrap(), "hello redirected\n");
+}
+
+// Stage: Redirect stdout
+#[test]
+fn explicit_fd_one_redirects_stdout() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("out.txt");
+
+    shell()
+        .write_stdin(format!("echo explicit 1> {}\n", out.display()))
+        .assert()
+        .success();
+
+    assert_eq!(std::fs::read_to_string(&out).unwrap(), "explicit\n");
+}
+
+// Stage: Redirect stderr
+#[test]
+fn redirects_stderr_to_a_file() {
+    let dir = tempfile::tempdir().unwrap();
+    make_executable(dir.path(), "noisy", "#!/bin/sh\necho oops >&2\n");
+    let err = dir.path().join("err.txt");
+
+    shell()
+        .env("PATH", path_with(dir.path()))
+        .write_stdin(format!("noisy 2> {}\n", err.display()))
+        .assert()
+        .success();
+
+    assert_eq!(std::fs::read_to_string(&err).unwrap(), "oops\n");
+}
+
+// Stage: Redirect stderr
+#[test]
+fn redirects_builtin_stderr_to_a_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let err = dir.path().join("err.txt");
+
+    shell()
+        .write_stdin(format!("cd /nonexistent_dir_xyz 2> {}\n", err.display()))
+        .assert()
+        .code(1);
+
+    assert_eq!(
+        std::fs::read_to_string(&err).unwrap(),
+        "cd: /nonexistent_dir_xyz: No such file or directory\n"
+    );
+}
+
+// Stage: Append stdout
+#[test]
+fn appends_stdout_to_a_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("out.txt");
+
+    shell()
+        .write_stdin(format!(
+            "echo first > {p}\necho second >> {p}\n",
+            p = out.display()
+        ))
+        .assert()
+        .success();
+
+    assert_eq!(std::fs::read_to_string(&out).unwrap(), "first\nsecond\n");
+}
+
+// Stage: Append stderr
+#[test]
+fn appends_stderr_to_a_file() {
+    let dir = tempfile::tempdir().unwrap();
+    make_executable(dir.path(), "noisy", "#!/bin/sh\necho oops >&2\n");
+    let err = dir.path().join("err.txt");
+
+    shell()
+        .env("PATH", path_with(dir.path()))
+        .write_stdin(format!("noisy 2>> {p}\nnoisy 2>> {p}\n", p = err.display()))
+        .assert()
+        .success();
+
+    assert_eq!(std::fs::read_to_string(&err).unwrap(), "oops\noops\n");
+}
+
+// Stage: Redirect stdout
+// A quoted redirection character is a literal argument, not an operator.
+#[test]
+fn quoted_redirect_character_is_printed_literally() {
+    shell()
+        .write_stdin("echo '>'\n")
+        .assert()
+        .success()
+        .stdout("$ >\n$ ");
+}

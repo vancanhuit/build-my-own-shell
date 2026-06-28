@@ -1,5 +1,6 @@
 //! Shell builtins that run inside the shell process.
 
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
@@ -17,7 +18,7 @@ pub enum Builtin {
 const BUILTINS: &[&str] = &["cd", "echo", "exit", "pwd", "type"];
 
 /// Whether `name` refers to a shell builtin.
-fn is_builtin(name: &str) -> bool {
+pub fn is_builtin(name: &str) -> bool {
     BUILTINS.contains(&name)
 }
 
@@ -44,10 +45,10 @@ fn is_executable(path: &Path) -> bool {
 ///
 /// Each name is reported on its own line. The status is `1` if any name could
 /// not be resolved, mirroring the shell's `type` exit code.
-fn run_type(names: &[String]) -> Builtin {
+fn run_type(names: &[String], out: &mut dyn Write) -> Builtin {
     let mut status = 0;
     for name in names {
-        if !report_type(name) {
+        if !report_type(name, out) {
             status = 1;
         }
     }
@@ -55,19 +56,19 @@ fn run_type(names: &[String]) -> Builtin {
 }
 
 /// Report how a single `name` would be resolved. Returns whether it was found.
-fn report_type(name: &str) -> bool {
+fn report_type(name: &str, out: &mut dyn Write) -> bool {
     if is_builtin(name) {
-        println!("{name} is a shell builtin");
+        let _ = writeln!(out, "{name} is a shell builtin");
         return true;
     }
 
     match find_in_path(name) {
         Some(path) => {
-            println!("{name} is {}", path.display());
+            let _ = writeln!(out, "{name} is {}", path.display());
             true
         }
         None => {
-            println!("{name}: not found");
+            let _ = writeln!(out, "{name}: not found");
             false
         }
     }
@@ -90,40 +91,40 @@ fn cd_target(arg: Option<&str>, home: Option<PathBuf>) -> Option<PathBuf> {
 }
 
 /// Implement the `cd` builtin for an optional target directory.
-fn run_cd(arg: Option<&str>) -> Builtin {
+fn run_cd(arg: Option<&str>, err: &mut dyn Write) -> Builtin {
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let Some(target) = cd_target(arg, home) else {
-        eprintln!("cd: HOME not set");
+        let _ = writeln!(err, "cd: HOME not set");
         return Builtin::Handled(1);
     };
 
     match std::env::set_current_dir(&target) {
         Ok(()) => Builtin::Handled(0),
         Err(_) => {
-            eprintln!("cd: {}: No such file or directory", target.display());
+            let _ = writeln!(err, "cd: {}: No such file or directory", target.display());
             Builtin::Handled(1)
         }
     }
 }
 
 /// Implement the `pwd` builtin: print the current working directory.
-fn run_pwd() -> Builtin {
+fn run_pwd(out: &mut dyn Write, err: &mut dyn Write) -> Builtin {
     match std::env::current_dir() {
         Ok(dir) => {
-            println!("{}", dir.display());
+            let _ = writeln!(out, "{}", dir.display());
             Builtin::Handled(0)
         }
-        Err(err) => {
-            eprintln!("pwd: {err}");
+        Err(error) => {
+            let _ = writeln!(err, "pwd: {error}");
             Builtin::Handled(1)
         }
     }
 }
 
-/// Try to run `command` as a builtin.
+/// Try to run `command` as a builtin, writing output to `out` and `err`.
 ///
 /// Returns `None` if the command name is not a known builtin.
-pub fn dispatch(command: &Command) -> Option<Builtin> {
+pub fn dispatch(command: &Command, out: &mut dyn Write, err: &mut dyn Write) -> Option<Builtin> {
     match command.name.as_str() {
         "exit" => {
             let status = command
@@ -134,12 +135,12 @@ pub fn dispatch(command: &Command) -> Option<Builtin> {
             Some(Builtin::Exit(status))
         }
         "echo" => {
-            println!("{}", command.args.join(" "));
+            let _ = writeln!(out, "{}", command.args.join(" "));
             Some(Builtin::Handled(0))
         }
-        "type" => Some(run_type(&command.args)),
-        "pwd" => Some(run_pwd()),
-        "cd" => Some(run_cd(command.args.first().map(String::as_str))),
+        "type" => Some(run_type(&command.args, out)),
+        "pwd" => Some(run_pwd(out, err)),
+        "cd" => Some(run_cd(command.args.first().map(String::as_str), err)),
         _ => None,
     }
 }
@@ -148,14 +149,19 @@ pub fn dispatch(command: &Command) -> Option<Builtin> {
 mod tests {
     use super::*;
 
+    /// Dispatch a command, discarding any output, for status-only assertions.
+    fn dispatch_quiet(command: &Command) -> Option<Builtin> {
+        dispatch(command, &mut std::io::sink(), &mut std::io::sink())
+    }
+
     #[test]
     fn unknown_command_is_not_a_builtin() {
-        assert!(dispatch(&Command::new("ls", Vec::new())).is_none());
+        assert!(dispatch_quiet(&Command::new("ls", Vec::new())).is_none());
     }
 
     #[test]
     fn exit_without_args_defaults_to_zero() {
-        match dispatch(&Command::new("exit", Vec::new())) {
+        match dispatch_quiet(&Command::new("exit", Vec::new())) {
             Some(Builtin::Exit(0)) => {}
             _ => panic!("expected Exit(0)"),
         }
@@ -163,16 +169,25 @@ mod tests {
 
     #[test]
     fn exit_parses_status_argument() {
-        match dispatch(&Command::new("exit", vec!["7".into()])) {
+        match dispatch_quiet(&Command::new("exit", vec!["7".into()])) {
             Some(Builtin::Exit(7)) => {}
             _ => panic!("expected Exit(7)"),
         }
     }
 
     #[test]
+    fn echo_writes_its_arguments_to_the_provided_stream() {
+        let mut out = Vec::new();
+        let command = Command::new("echo", vec!["hello".into(), "world".into()]);
+        let status = dispatch(&command, &mut out, &mut std::io::sink());
+        assert!(matches!(status, Some(Builtin::Handled(0))));
+        assert_eq!(out, b"hello world\n");
+    }
+
+    #[test]
     fn type_reports_known_builtins_as_handled() {
         for name in ["cd", "echo", "exit", "pwd", "type"] {
-            match dispatch(&Command::new("type", vec![name.to_string()])) {
+            match dispatch_quiet(&Command::new("type", vec![name.to_string()])) {
                 Some(Builtin::Handled(0)) => {}
                 _ => panic!("expected Handled(0) for `type {name}`"),
             }
@@ -181,7 +196,7 @@ mod tests {
 
     #[test]
     fn type_reports_unknown_names_as_handled_failure() {
-        match dispatch(&Command::new(
+        match dispatch_quiet(&Command::new(
             "type",
             vec!["definitely_not_a_real_command_xyz".to_string()],
         )) {
@@ -192,7 +207,7 @@ mod tests {
 
     #[test]
     fn type_without_arguments_is_handled_success() {
-        match dispatch(&Command::new("type", Vec::new())) {
+        match dispatch_quiet(&Command::new("type", Vec::new())) {
             Some(Builtin::Handled(0)) => {}
             _ => panic!("expected Handled(0) for `type` with no operands"),
         }
@@ -200,7 +215,7 @@ mod tests {
 
     #[test]
     fn type_fails_when_any_name_is_unknown() {
-        match dispatch(&Command::new(
+        match dispatch_quiet(&Command::new(
             "type",
             vec!["echo".into(), "definitely_not_a_real_command_xyz".into()],
         )) {
