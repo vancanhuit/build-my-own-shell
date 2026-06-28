@@ -82,10 +82,10 @@ The following checklist is the implementation track for this repository.
 
 ### Navigation
 
-- [ ] The `pwd` builtin
-- [ ] The `cd` builtin: absolute paths
-- [ ] The `cd` builtin: relative paths
-- [ ] The `cd` builtin: home directory
+- [x] The `pwd` builtin
+- [x] The `cd` builtin: absolute paths
+- [x] The `cd` builtin: relative paths
+- [x] The `cd` builtin: home directory
 
 ### Quoting
 
